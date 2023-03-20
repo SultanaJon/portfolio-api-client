@@ -1,0 +1,60 @@
+name: Portfolio CI
+
+on:
+  pull_request:
+  push:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+
+env: 
+  MIX_ENV: test
+
+jobs:
+  deps:
+
+    name: Dependencies
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        elixir: [1.14.2]
+        otp: [25.3]
+
+    services:
+      postgres:
+        image: postgres:15.2
+        ports: ['5432:5432']
+        env:
+          POSTGRES_PASSWORD: postgres
+          options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+    
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    - name: Setup
+      uses: erlef/setup-beam@v1
+      with:
+        elixir-version: ${{ matrix.elixir }}
+        otp-version: ${{ matrix.otp }}
+
+    - name: Restore dependecies cache
+      uses: actions/cache@v3
+      with: 
+        path: deps
+        key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
+        restore-keys: ${{ runner.os }}-mix-
+
+    - name: Install dependencies
+      run: mix do deps.get, deps.compile
+
+    - name: Compile source code
+      run: mix compile --warnings-as-errors
+
+    - name: Check Formatting
+      run: mix format --check-formatted
+    
+    - name: Run tests
+      run: mix test
